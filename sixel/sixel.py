@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # ***** END LICENSE BLOCK *****
 
-import sys
+import sys,os
 from converter import SixelConverter
 
 class SixelWriter:
@@ -79,7 +79,26 @@ class SixelWriter:
                                              h,
                                              alphathreshold=alphathreshold,
                                              chromakey=chromakey)
-            sys.stdout.write(sixel_converter.getvalue())
+
+            output = sixel_converter.getvalue()
+            env = os.environ
+            if env.has_key("TERM") and "screen" in env["TERM"]:
+                # (ST+DCS) splits sixel terminator, because ST(sixel's terminator)
+                # is identified as ST(screen's terminator)
+                # (ST+DCS) is equivalent to NOP in this context.
+                n = 512-8
+                DCS,ST="\x1bP","\x1b\\"
+                ST2 = "\x1b"+(ST+DCS)+"\\"
+                output = output.replace("\x90", DCS
+                              ).replace("\x9c", ST2
+                              ).replace("\x1b\\", ST2)
+                for chunk in [output[i:i+n] for i in range(0,len(output),n)]:
+                    sys.stdout.write(DCS)
+                    sys.stdout.write(chunk)
+                    sys.stdout.write(ST)
+                    sys.stdout.flush()
+            else:
+                sys.stdout.write(output)
 
         finally:
             self.restore_position()
